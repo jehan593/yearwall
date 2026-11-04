@@ -115,6 +115,11 @@ object StatusChecker {
             items += StatusItem("Last error", false, it)
         }
 
+        // Last app crash, full stack trace — the self-serve replacement for adb logcat.
+        CrashGuard.lastCrash(context)?.let { trace ->
+            items += StatusItem("Last crash", false, trace.take(700))
+        }
+
         items
     }
 

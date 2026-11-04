@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yearwall.app.automation.CrashGuard
 import com.yearwall.app.automation.StatusChecker
 import com.yearwall.app.automation.StatusItem
 import com.yearwall.app.automation.YearwallEngine

@@ -14,6 +14,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Modifier
+import com.yearwall.app.automation.CrashGuard
 import com.yearwall.app.automation.Scheduler
 import com.yearwall.app.ui.YearwallScreen
 import com.yearwall.app.ui.theme.YearwallTheme
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashGuard.install(this)
         setContent {
             YearwallTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
