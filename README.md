@@ -17,8 +17,9 @@ The Android port of my [Termux yearwall system](https://github.com/jehan593/term
 - **Lock screen by default** — like `termux-wallpaper -l`. Home screen or both is a one-tap choice.
 - **Set-and-forget updates** — updates at midnight, catches up on boot, and whenever you open the
   app. Timezone or clock changes are handled too.
-- **Remove restores your wallpaper** — your previous wallpaper is saved before the first apply.
-  If nothing was saved, Remove sets the same default wallpaper the shell setup used.
+- **Remove puts back the default** — Remove sets the same default wallpaper the shell setup
+  used (a bundled copy of `termux-config`'s `data/wallpaper/wallpaper.png`), on the screens
+  yearwall touched. No leftover lock-in: uninstalling stops everything instantly.
 - **Status you can read** — every part of the automation reports what it did and why.
 - **Nord themed UI** — same palette and Martian Mono type as Linker/OwnApps/Noter.
 

@@ -55,10 +55,9 @@ Manual design, no DI framework, no Room: the app is one stateful pipeline plus t
 **Data** (`data/YearwallStore.kt`) — a single DataStore, the shell system's filesystem state in
 pref form: `last_applied_epoch_day` (the boot script's `date -r` staleness check), the two design
 knobs (`columns`, `content_y_percent` — grid columns at the script's default 21, and the whole-
-content Y anchor as a percent of height, default 29 ≈ the script's 700/2400), whether the pre-
-yearwall wallpaper has been archived (home & lock separately), the verbatim `backup_note` state,
-and `last_error` for the status list. No Room — none of that is relational; tooler's "no database
-for scalar prefs" rule applies directly.
+content Y anchor as a percent of height, default 29 ≈ the script's 700/2400), and `last_error`
+for the status list. No Room — none of that is relational; tooler's "no database for scalar
+prefs" rule applies directly.
 
 **Render** (`wallpaper/WallpaperGenerator.kt`) — one `Canvas` frame built at the system's own
 desired wallpaper size (`WallpaperManager.desiredMinimumWidth/Height`, 1080x2400 only as the
@@ -78,17 +77,13 @@ shell's `10#` octal guard has no analogue — `java.time` doesn't have that trap
 **Apply** (`wallpaper/WallpaperApplier.kt`) — `setBitmap` per targeted flag with an explicit
 full-frame crop rect (`isWallpaperSupported`/`isSetWallpaperAllowed` checked first — the
 dep-checker equivalent; the per-flag try/catch is deliberate because stock skins often lock the
-lock screen only). The original wallpaper is snapshotted **once, per targeted screen, before that
-screen's first apply** and restored by Remove. What counts as "not archivable": ANY wall the app
-itself ever painted there (today's render, yesterday's, a reinstalled-earlier one) — detected via
-two invisible marker pixels the generator stamps into every render (`WallpaperGenerator.MARKER_A
-/B`, corner pixels outside the Nord palette, checked with `isAppRender`), so "was this set by
-yearwall?" is O(1) and day-instance-proof — archiving an app-made wall would make Remove "restore"
-a yearwall render, defeating the whole feature. A snapshot that the system can't hand back
-(getDrawable/peekDrawable both null/throw — some skins) does NOT flip the handled flag: the next
-apply retries and the `backup_note` DataStore value spells out exactly what happened in the status
-row ("system reported no wallpaper readable…", "wall is one of yearwall's own renders — not
-archived", …) — a silently skipped archive must never be confusable with a broken one.
+lock screen only). There is NO wallpaper archiving: on-device diagnosis showed stripped OEM
+frameworks (HiOS/XOS-era Android 10) don't even expose the wallpaper *reader* overloads
+(`NoSuchMethodError` — an Error, not Exception), so the complexity was removed; Remove sets the
+bundled termux default unconditionally (see below). Every `WallpaperManager` call is
+Throwable-safe with a fallback ladder (`setBitmap(bmp, crop, true, which)` →
+`setBitmap(bmp)` for home writes) because that error class would otherwise kill the process;
+failures surface per-screen in the status list instead.
 
 **Trigger layers** (`automation/`) — three unique WorkManager names:
 - `yearwall_midnight` — self-rescheduling one-time job (+10 s past 00:00 so the day has flipped
