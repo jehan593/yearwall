@@ -71,7 +71,14 @@ object YearwallEngine {
         android.util.Log.i("Yearwall", "apply complete home=${outcome.homeOk} lock=${outcome.lockOk} ${outcome.messages.joinToString(" | ")}")
         // Only stamp the day when every targeted screen actually took — a failed lock-screen
         // write under target=lock still re-tries the pair next time (the script's `|| exit 1`).
-        if (outcome.allOk) YearwallStore.setLastAppliedDay(context, today.toEpochDay())
+        if (outcome.allOk) {
+            YearwallStore.setLastAppliedDay(context, today.toEpochDay())
+            // Re-arm the midnight chain on EVERY successful apply — the Apply-now button path
+            // runs outside the worker, and without this a Remove+Apply in the same Activity
+            // session left the chain cancelled and the status red until some later worker
+            // happened to re-arm it (verified live on the device).
+            Scheduler.scheduleNextMidnight(context, androidx.work.ExistingWorkPolicy.REPLACE)
+        }
         YearwallStore.setLastError(
             context,
             if (outcome.allOk) null else outcome.messages.joinToString(" · ")
