@@ -5,6 +5,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import java.time.Duration
@@ -48,11 +49,13 @@ object Scheduler {
     }
 
     private fun ensureFallback(context: Context) {
+        // A CANCELLED periodic row blocks KEEP too; UPDATE re-arms it at once (same request
+        // content, so this churns nothing), keeping the safety net alive after Remove+re-Apply.
         val request = PeriodicWorkRequestBuilder<YearwallWorker>(Duration.ofHours(24))
             .setInitialDelay(Duration.ofMillis(millisUntilNextMidnight()))
             .build()
         WorkManager.getInstance(context)
-            .enqueueUniquePeriodicWork(UNIQUE_FALLBACK, ExistingPeriodicWorkPolicy.KEEP, request)
+            .enqueueUniquePeriodicWork(UNIQUE_FALLBACK, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 
     /**
@@ -62,9 +65,28 @@ object Scheduler {
      * chain intact instead of pushing "next midnight" out a full day on every resume.
      */
     fun ensure(context: Context, rebaseExisting: Boolean = false) {
-        scheduleNextMidnight(context, if (rebaseExisting) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP)
+        scheduleNextMidnight(context, midnightPolicy(context, rebaseExisting))
         ensureFallback(context)
         enqueueCatchUp(context)
+    }
+
+    /*
+     * KEEP only protects a chain that is genuinely alive. After `Remove` (cancelAll) the
+     * midnight record survives internally in CANCELLED state — KEEP would see it and refuse
+     * to arm anything, leaving the status red until some future worker re-armed with REPLACE.
+     * So: ENQUEUED → keep (don't churn), RUNNING → keep (never yank an in-flight midnight
+     * run), anything else (cancelled/finished/absent) → replace, which re-arms immediately.
+     */
+    private fun midnightPolicy(context: Context, rebaseExisting: Boolean): ExistingWorkPolicy {
+        if (rebaseExisting) return ExistingWorkPolicy.REPLACE
+        val state = runCatching {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork(UNIQUE_MIDNIGHT).get().firstOrNull()?.state
+        }.getOrNull()
+        return when (state) {
+            WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING -> ExistingWorkPolicy.KEEP
+            else -> ExistingWorkPolicy.REPLACE
+        }
     }
 
     fun cancelAll(context: Context) {
