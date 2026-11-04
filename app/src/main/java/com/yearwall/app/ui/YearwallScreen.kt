@@ -68,8 +68,8 @@ fun YearwallScreen() {
 
     fun refresh() {
         scope.launch {
-            status = StatusChecker.collect(context)
-            preview = loadPreview(context)
+            runSafely { status = StatusChecker.collect(context) }
+            runSafely { preview = loadPreview(context) }
         }
     }
 
@@ -118,9 +118,9 @@ fun YearwallScreen() {
                 onClick = {
                     busy = true
                     scope.launch {
-                        YearwallEngine.apply(context, force = true)
-                        status = StatusChecker.collect(context)
-                        preview = loadPreview(context)
+                        runSafely { YearwallEngine.apply(context, force = true) }
+                        runSafely { status = StatusChecker.collect(context) }
+                        runSafely { preview = loadPreview(context) }
                         busy = false
                     }
                 },
@@ -242,9 +242,9 @@ fun YearwallScreen() {
                     confirmRemove = false
                     busy = true
                     scope.launch {
-                        YearwallEngine.remove(context)
-                        status = StatusChecker.collect(context)
-                        preview = loadPreview(context)
+                        runSafely { YearwallEngine.remove(context) }
+                        runSafely { status = StatusChecker.collect(context) }
+                        runSafely { preview = loadPreview(context) }
                         busy = false
                     }
                 }) { Text("Remove") }
@@ -339,3 +339,10 @@ private suspend fun loadPreview(context: android.content.Context): ImageBitmap? 
             BitmapFactory.Options().apply { inSampleSize = sample }
         )?.asImageBitmap()
     }
+
+// Nothing a user taps should ever crash the process; the Status list is the error surface.
+private suspend fun runSafely(block: suspend () -> Unit) {
+    try {
+        block()
+    } catch (_: Throwable) { }
+}

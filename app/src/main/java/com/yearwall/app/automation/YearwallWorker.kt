@@ -24,14 +24,14 @@ class YearwallWorker(
             Scheduler.scheduleNextMidnight(appContext, ExistingWorkPolicy.REPLACE)
             when {
                 outcome.allOk -> Result.success()
-                // A rejected home-screen set is most likely permanent (launcher denies it), but
+                // A rejected wallpaper set is most likely permanent (launcher denies it), but
                 // OEMs misbehave transiently under boot pressure too — retry, then give up and
                 // surface the reason via StatusChecker's last-error item.
                 runAttemptCount < MAX_ATTEMPTS -> Result.retry()
                 else -> Result.failure()
             }
-        } catch (e: Exception) {
-            YearwallStore.setLastError(appContext, e.message ?: e.javaClass.simpleName)
+        } catch (t: Throwable) {
+            YearwallStore.setLastError(appContext, t.message ?: t.javaClass.simpleName)
             Scheduler.scheduleNextMidnight(appContext, ExistingWorkPolicy.REPLACE)
             if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
         }

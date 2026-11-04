@@ -83,9 +83,9 @@ object WallpaperApplier {
     ): Pair<Boolean, String?> = try {
         wallpaperManager.setBitmap(bitmap, crop, true, which)
         true to null
-    } catch (e: Exception) {
+    } catch (t: Throwable) {
         val screen = if (which == WallpaperManager.FLAG_SYSTEM) "Home screen" else "Lock screen"
-        false to "$screen: ${e.message ?: e.javaClass.simpleName}"
+        false to "$screen: ${t.message ?: t.javaClass.simpleName}"
     }
 
     /*
@@ -215,8 +215,8 @@ object WallpaperApplier {
         val crop = Rect(0, 0, bitmap.width, bitmap.height)
         wallpaperManager.setBitmap(bitmap, crop, true, which)
         "$screen: termux default wallpaper set (no original backup existed)."
-    } catch (e: Exception) {
-        "$screen: default-wallpaper fallback failed — ${e.message ?: e.javaClass.simpleName}"
+    } catch (t: Throwable) {
+        "$screen: default-wallpaper fallback failed — ${t.message ?: t.javaClass.simpleName}"
     }
 
     private fun restoreOne(
@@ -231,8 +231,8 @@ object WallpaperApplier {
         wallpaperManager.setBitmap(bitmap, crop, true, which)
         backup.delete()
         "$screen: original wallpaper restored."
-    } catch (e: Exception) {
-        "$screen: restore failed — ${e.message ?: e.javaClass.simpleName}"
+    } catch (t: Throwable) {
+        "$screen: restore failed — ${t.message ?: t.javaClass.simpleName}"
     }
 
     private fun currentBitmap(wallpaperManager: WallpaperManager, which: Int): Bitmap? {

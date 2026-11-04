@@ -29,6 +29,18 @@ object YearwallEngine {
 
     suspend fun apply(context: Context, force: Boolean = false): ApplyOutcome {
         val today = LocalDate.now()
+        return try {
+            applyRender(context, today, force)
+        } catch (t: Throwable) {
+            // Low-RAM devices can throw OutOfMemoryError (an Error, not Exception) from inside
+            // the system's wallpaper scaling — the caller (UI or worker) must never crash from it.
+            val message = t.message ?: t.javaClass.simpleName
+            try { YearwallStore.setLastError(context, message) } catch (_: Throwable) { }
+            ApplyOutcome(false, false, listOf(message))
+        }
+    }
+
+    private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {
         val prefs = YearwallStore.read(context)
         if (!force && prefs.lastAppliedEpochDay == today.toEpochDay()) {
             return ApplyOutcome(true, true, listOf("Wallpaper is already current for $today."))
