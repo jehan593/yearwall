@@ -146,18 +146,7 @@ fun YearwallScreen() {
                 Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Automation settings", fontWeight = FontWeight.Medium, fontSize = 16.sp)
-                    TextButton(onClick = {
-                        scope.launch {
-                            YearwallStore.resetAutomation(context)
-                            prefs = YearwallStore.read(context)
-                        }
-                    }) { Text("Reset to defaults") }                }
+                Text("Automation settings", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                 Text(
                     "Changes apply on the next wallpaper update. Apply now to use them immediately.",
                     fontSize = 12.sp,
@@ -199,6 +188,16 @@ fun YearwallScreen() {
                     prefs = prefs.copy(contentYPercent = next)
                     scope.launch { YearwallStore.setContentYPercent(context, next) }
                 }
+                // Reset lives at the card's bottom, full-width for an easy thumb target.
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            YearwallStore.resetAutomation(context)
+                            prefs = YearwallStore.read(context)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Reset to defaults") }
             }
         }
 
