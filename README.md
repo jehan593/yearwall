@@ -1,0 +1,46 @@
+# Yearwall
+
+[![Build APK](https://github.com/jehan593/yearwall/actions/workflows/build-apk.yml/badge.svg)](https://github.com/jehan593/yearwall/actions/workflows/build-apk.yml)
+[![Latest release](https://img.shields.io/github/v/release/jehan593/yearwall)](https://github.com/jehan593/yearwall/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+The Android port of my [Termux yearwall system](https://github.com/jehan593/termux-config): a daily
+"year progress" wallpaper — a Nord dot grid with one red dot for today, plus a `NN% of YYYY` /
+`day/total` header. Same look, same habits, zero Termux.
+
+> FYI: this project is fully vibe coded
+
+## Features
+
+- **The same render, no Termux** — the wallpaper is drawn natively with the same colors, layout
+  and Martian Mono header: elapsed days filled, remaining days hollow, today red.
+- **Lock screen by default** — like `termux-wallpaper -l`. Home screen or both is a one-tap choice.
+- **Set-and-forget updates** — updates at midnight, catches up on boot, and whenever you open the
+  app. Timezone or clock changes are handled too.
+- **Remove restores your wallpaper** — your previous wallpaper is saved before the first apply.
+  If nothing was saved, Remove sets the same default wallpaper the shell setup used.
+- **Status you can read** — every part of the automation reports what it did and why.
+- **Nord themed UI** — same palette and Martian Mono type as Linker/OwnApps/Noter.
+
+## Install
+
+Download the latest APK from [Releases](https://github.com/jehan593/yearwall/releases/latest). Open
+the app, review the status list, and press **Apply now** to set today's wallpaper. That's it.
+
+## Build
+
+```sh
+./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
+```
+
+Requires an Android SDK path in `local.properties` (`sdk.dir=...`).
+
+## Tech stack
+
+Kotlin, Jetpack Compose, Material 3, WorkManager, DataStore.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). The bundled Martian Mono font is licensed separately under the
+SIL Open Font License 1.1 — see
+[`app/licenses/MARTIAN_MONO_LICENSE.txt`](app/licenses/MARTIAN_MONO_LICENSE.txt).

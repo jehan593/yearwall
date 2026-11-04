@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The entire point of the app: changing home/lock screen wallpaper via WallpaperManager. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
+    <!-- The equivalent of ~/.termux/boot/50-yearwall.sh: re-anchors the midnight job after a
+         reboot (the device was probably off/asleep at the last midnight) and at clock/timezone
+         changes, then enqueues an expedited catch-up generation if today's wallpaper is stale. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Yearwall">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Yearwall">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            Like every manifest receiver for protected system broadcasts the OS sends these
+            explicitly to us — nothing gets bound at runtime, it just re-arms the scheduler
+            (WorkManager keeps its job database across reboots; this only repairs the
+            "midnight elapsed while the device was off" hole cron also had, which is exactly
+            what the Termux boot script existed for).
+
+            TIME_SET covers manual clock changes; TIMEZONE_CHANGED covers travel — both shift
+            what "next midnight" means, so the pending one-time job is REPLACEd with a fresh
+            delay instead of trusting the old elapsed-time target.
+        -->
+        <receiver
+            android:name=".automation.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>
