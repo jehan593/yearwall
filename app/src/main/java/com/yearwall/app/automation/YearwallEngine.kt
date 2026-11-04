@@ -40,8 +40,7 @@ object YearwallEngine {
         }
     }
 
-    private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {
-        val prefs = YearwallStore.read(context)
+    private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {        val prefs = YearwallStore.read(context)
         if (!force && prefs.lastAppliedEpochDay == today.toEpochDay()) {
             return ApplyOutcome(true, true, listOf("Wallpaper is already current for $today."))
         }
@@ -69,6 +68,7 @@ object YearwallEngine {
         }
 
         val outcome = WallpaperApplier.apply(context, bitmap, prefs.target)
+        android.util.Log.i("Yearwall", "apply complete home=${outcome.homeOk} lock=${outcome.lockOk} ${outcome.messages.joinToString(" | ")}")
         // Only stamp the day when every targeted screen actually took — a failed lock-screen
         // write under target=lock still re-tries the pair next time (the script's `|| exit 1`).
         if (outcome.allOk) YearwallStore.setLastAppliedDay(context, today.toEpochDay())
@@ -80,12 +80,15 @@ object YearwallEngine {
     }
 
     /**
-     * The `rm` command: stop all three timers, restore what was set before the very first
-     * apply (the script restored a fixed default — this restores *your actual* previous
-     * wallpaper), then wipe generated artifacts and prefs.
+     * The `rm` command: stop all three timers, set the same default wallpaper the shell
+     * script restored (bundled copy of termux-config's data/wallpaper/wallpaper.png) onto
+     * every screen yearwall touched, then wipe generated artifacts and prefs.
      */
     suspend fun remove(context: Context): List<String> {
-        val messages = WallpaperApplier.removeAndRestore(context)
+        val messages = WallpaperApplier.restoreDefaults(context).toMutableList()
+        if (messages.any { it.contains("failed") || it.contains("unreadable") }) {
+            YearwallStore.setLastError(context, messages.joinToString(" · "))
+        }
         File(context.filesDir, IMAGE_FILE).delete()
         YearwallStore.clear(context)
         Scheduler.cancelAll(context)

@@ -151,23 +151,6 @@ object WallpaperGenerator {
             if (i == day) canvas.drawCircle(cx, cy, dotRadius + ringStroke * 0.35f, today)
         }
 
-        /*
-         * Invisible ownership marker: two corner pixels carrying colors far outside the Nord
-         * palette. Lets the applier recognize any wall yearwall ever painted (any day, any
-         * install) in O(1) and refuse to "back it up" as the user's previous wallpaper.
-         */
-        bitmap.setPixel(d.width - 1, d.height - 1, MARKER_A)
-        bitmap.setPixel(d.width - 2, d.height - 1, MARKER_B)
-
         return bitmap
     }
-
-    // Marker colors deliberately outside the Nord palette.
-    const val MARKER_A = 0xFFB81B62.toInt()
-    const val MARKER_B = 0xFF1E4FC9.toInt()
-
-    fun isAppRender(bitmap: Bitmap): Boolean =
-        bitmap.width >= 2 &&
-            bitmap.getPixel(bitmap.width - 1, bitmap.height - 1) == MARKER_A &&
-            bitmap.getPixel(bitmap.width - 2, bitmap.height - 1) == MARKER_B
 }

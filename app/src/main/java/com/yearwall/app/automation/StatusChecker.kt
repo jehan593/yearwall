@@ -94,22 +94,6 @@ object StatusChecker {
             )
         }
 
-        // --- Original wallpaper backup ----------------------------------------------------------
-        // The note explains what the last backup pass actually did, so a skipped archive
-        // never looks like a broken one.
-        items += when {
-            prefs.originalsSavedHome || prefs.originalsSavedLock ->
-                StatusItem(
-                    "Original backup",
-                    true,
-                    prefs.backupNote ?: "Your previous wallpaper is saved for Remove."
-                )
-            prefs.backupNote != null ->
-                StatusItem("Original backup", false, prefs.backupNote)
-            else ->
-                StatusItem("Original backup", false, "Nothing saved yet — happens on first apply.")
-        }
-
         // --- Last error (printfc-red-equivalent surfaced into status) ---------------------------
         prefs.lastError?.takeIf { it.isNotBlank() }?.let {
             items += StatusItem("Last error", false, it)
