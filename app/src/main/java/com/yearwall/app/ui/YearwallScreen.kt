@@ -214,7 +214,7 @@ fun YearwallScreen() {
             ) {
                 Text("Remove", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                 Text(
-                    "Stops the automatic updates and puts back your previous wallpaper.",
+                    "Stops the automatic updates and sets the default Nord wallpaper.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -235,7 +235,7 @@ fun YearwallScreen() {
             title = { Text("Remove yearwall?") },
             text = {
                 Text(
-                    "Yearwall will stop updating and restore the wallpaper it replaced."
+                    "Yearwall will stop updating and set the default Nord wallpaper."
                 )
             },
             confirmButton = {
