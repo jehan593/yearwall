@@ -46,12 +46,11 @@ object Scheduler {
     }
 
     /*
-     * WorkManager chains are Doze-deferred: with the phone locked and idle overnight the job
-     * lands in a system-chosen maintenance window, so the theoretical midnight run can slip
-     * hours (observed: until first unlock on both test devices). The exact alarm is the
-     * platform mechanism that breaks THROUGH Doze — setExactAndAllowWhileIdle wakes the CPU
-     * at precisely 00:00:10 and the receiver applies under a short wakelock. WorkManager
-     * stays as the crash-proof long chain; the alarm is the sharp edge.
+     * WorkManager chains are Doze-deferred: overnight with the screen off, the job fires in a
+     * system-chosen maintenance window, so midnight can slip until the next unlock. The exact
+     * alarm (setExactAndAllowWhileIdle) is what breaks through Doze: it wakes the CPU at
+     * 00:00:10 and the receiver applies under a short wakelock. WorkManager stays as the
+     * crash-proof backstop; the alarm is the sharp edge.
      */
     fun scheduleExactMidnightAlarm(context: Context) {
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
@@ -67,8 +66,7 @@ object Scheduler {
             if (canExact) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
             } else {
-                // No exact-alarm permission: best-effort window instead — same as the old
-                // behavior plus a nudge to grant the permission for exact timing.
+                // No exact-timing permission: best-effort window instead.
                 alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAtMillis, 600_000L, pendingIntent)
             }
         } catch (t: Throwable) {

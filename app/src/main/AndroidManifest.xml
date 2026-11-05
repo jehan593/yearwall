@@ -1,18 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- The entire point of the app: changing home/lock screen wallpaper via WallpaperManager. -->
+    <!-- Lets the app set home/lock screen wallpapers. -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
-    <!-- The equivalent of ~/.termux/boot/50-yearwall.sh: re-anchors the midnight job after a
-         reboot (the device was probably off/asleep at the last midnight) and at clock/timezone
-         changes, then enqueues an expedited catch-up generation if today's wallpaper is stale. -->
+    <!-- Catches up after reboot or clock/timezone changes. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- The midnight exact alarm: on Android 12+ the system gates precise timing behind this
-         special access (USE_EXACT_ALARM auto-grants on 13+); below 12, precise alarms need no
-         permission at all. Without it the app falls back to windowed-shortest alarms — same
-         deferral as before, and the Status list says so. -->
+    <!-- Exact midnight alarm: USE_EXACT_ALARM auto-grants on Android 13+; on Android 12 the
+         user grants it; below 12 it needs no permission at all. Without it the app falls back
+         to a best-effort window and the Status list says so. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
@@ -34,17 +31,9 @@
             </intent-filter>
         </activity>
 
-        <!--
-            Like every manifest receiver for protected system broadcasts the OS sends these
-            explicitly to us — nothing gets bound at runtime, it just re-arms the scheduler
-            (WorkManager keeps its job database across reboots; this only repairs the
-            "midnight elapsed while the device was off" hole cron also had, which is exactly
-            what the Termux boot script existed for).
-
-            TIME_SET covers manual clock changes; TIMEZONE_CHANGED covers travel — both shift
-            what "next midnight" means, so the pending one-time job is REPLACEd with a fresh
-            delay instead of trusting the old elapsed-time target.
-        -->
+        <!-- Receiver for reboot / clock / timezone changes: WorkManager survives reboots, this
+             only repairs the "midnight passed while powered off" hole and re-bases the alarm
+             after clock or timezone shifts. -->
         <receiver
             android:name=".automation.BootReceiver"
             android:exported="true">
@@ -55,8 +44,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- The exact-midnight alarm target: explicit-component-only (no intent-filter),
-             invisible to anything but the app itself. -->
+        <!-- Exact-midnight alarm target; explicit component only, never broadcast-addressable. -->
         <receiver
             android:name=".automation.YearwallAlarmReceiver"
             android:exported="false" />

@@ -15,8 +15,9 @@ The Android port of my [Termux yearwall system](https://github.com/jehan593/term
 - **The same render, no Termux** — the wallpaper is drawn natively with the same colors, layout
   and Martian Mono header: elapsed days filled, remaining days hollow, today red.
 - **Lock screen by default** — like `termux-wallpaper -l`. Home screen or both is a one-tap choice.
-- **Set-and-forget updates** — updates at midnight, catches up on boot, and whenever you open the
-  app. Timezone or clock changes are handled too.
+- **Set-and-forget updates** — an exact alarm fires at midnight and works while the phone is
+  off-screen and asleep; boot, clock, timezone and app-open catch-ups cover anything missed.
+  *Huawei/EMUI: set App launch → Yearwall → Manage manually so the overnight alarm is honored.*
 - **Remove puts back the default** — Remove sets the same default wallpaper the shell setup
   used (a bundled copy of `termux-config`'s `data/wallpaper/wallpaper.png`), on the screens
   yearwall touched. No leftover lock-in: uninstalling stops everything instantly.

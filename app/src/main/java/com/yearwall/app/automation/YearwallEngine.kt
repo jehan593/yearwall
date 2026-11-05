@@ -40,17 +40,15 @@ object YearwallEngine {
         }
     }
 
-    private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {        val prefs = YearwallStore.read(context)
+    private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {
+        val prefs = YearwallStore.read(context)
         if (!force && prefs.lastAppliedEpochDay == today.toEpochDay()) {
             return ApplyOutcome(true, true, listOf("Wallpaper is already current for $today."))
         }
 
         val design = run {
-            // Generalized sizing — from the REAL display size. WallpaperManager's
-            // desiredMinimumWidth/Height is a documented trap: several skins return a
-            // virtual/launcher-scaled value there (a tiny bitmap gets upscaled ~4x by the
-            // lock screen into giant dots), so the actual window metrics are used instead,
-            // with the script's 1080x2400 reference as the last-resort fallback.
+            // Real display size — desiredMinimumWidth/Height lies on several skins (a tiny
+            // render gets upscaled ~4x), so window metrics are used instead.
             val (detectedWidth, detectedHeight) = screenPortraitSize(context)
             WallpaperGenerator.Design(
                 width = detectedWidth,
