@@ -68,6 +68,17 @@ object StatusChecker {
         }
         items += midnightStatus
 
+        // --- Midnight precision: the exact alarm (the piece that makes it happen when the
+        // phone is locked and asleep) --------------------------------------------
+        items += StatusItem(
+            "Midnight precision",
+            Scheduler.exactAlarmsPermitted(context),
+            if (Scheduler.exactAlarmsPermitted(context))
+                "Exact alarm set — updates even while locked and asleep."
+            else
+                "Exact timing needs the 'Alarms & reminders' permission — updates may arrive late."
+        )
+
         // --- Boot script equivalent --------------------------------------------------------------
         items += StatusItem(
             "Boot persistence",

@@ -1,6 +1,11 @@
 package com.yearwall.app.automation
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -30,12 +35,62 @@ object Scheduler {
     const val UNIQUE_MIDNIGHT = "yearwall_midnight"
     const val UNIQUE_CATCHUP = "yearwall_catchup"
     const val UNIQUE_FALLBACK = "yearwall_daily_fallback"
+    private const val ALARM_REQUEST = 4444
 
     fun scheduleNextMidnight(context: Context, policy: ExistingWorkPolicy) {
         val request = OneTimeWorkRequestBuilder<YearwallWorker>()
             .setInitialDelay(Duration.ofMillis(millisUntilNextMidnight()))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_MIDNIGHT, policy, request)
+        scheduleExactMidnightAlarm(context)
+    }
+
+    /*
+     * WorkManager chains are Doze-deferred: with the phone locked and idle overnight the job
+     * lands in a system-chosen maintenance window, so the theoretical midnight run can slip
+     * hours (observed: until first unlock on both test devices). The exact alarm is the
+     * platform mechanism that breaks THROUGH Doze — setExactAndAllowWhileIdle wakes the CPU
+     * at precisely 00:00:10 and the receiver applies under a short wakelock. WorkManager
+     * stays as the crash-proof long chain; the alarm is the sharp edge.
+     */
+    fun scheduleExactMidnightAlarm(context: Context) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, YearwallAlarmReceiver::class.java)
+            .setAction(YearwallAlarmReceiver.ACTION_MIDNIGHT)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, ALARM_REQUEST, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val triggerAtMillis = System.currentTimeMillis() + millisUntilNextMidnight()
+        val canExact = exactAlarmsPermitted(context)
+        try {
+            if (canExact) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            } else {
+                // No exact-alarm permission: best-effort window instead — same as the old
+                // behavior plus a nudge to grant the permission for exact timing.
+                alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAtMillis, 600_000L, pendingIntent)
+            }
+        } catch (t: Throwable) {
+            Log.e("YearwallAlarm", "scheduling midnight alarm failed", t)
+        }
+    }
+
+    fun cancelExactMidnightAlarm(context: Context) {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val intent = Intent(context, YearwallAlarmReceiver::class.java)
+            .setAction(YearwallAlarmReceiver.ACTION_MIDNIGHT)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, ALARM_REQUEST, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        runCatching { alarmManager.cancel(pendingIntent) }
+    }
+
+    fun exactAlarmsPermitted(context: Context): Boolean {
+        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true // pre-31: no opt-in needed
+        return runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(false)
     }
 
     fun enqueueCatchUp(context: Context, force: Boolean = false) {
@@ -94,6 +149,7 @@ object Scheduler {
         for (name in listOf(UNIQUE_MIDNIGHT, UNIQUE_CATCHUP, UNIQUE_FALLBACK)) {
             workManager.cancelUniqueWork(name)
         }
+        cancelExactMidnightAlarm(context)
     }
 
     // +10s: cron fired at exactly 00:00:00 and `date +%j` was already the new day; elapsed-time
