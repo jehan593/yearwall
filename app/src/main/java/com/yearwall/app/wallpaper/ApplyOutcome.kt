@@ -13,3 +13,12 @@ data class ApplyOutcome(
     val anyOk: Boolean get() = homeOk || lockOk
     val allOk: Boolean get() = homeOk && lockOk
 }
+
+/** Same per-screen shape for restoring the bundled Nord default (target change / Remove). */
+data class RestoreOutcome(
+    val homeOk: Boolean,
+    val lockOk: Boolean,
+    val messages: List<String>
+) {
+    val allOk: Boolean get() = homeOk && lockOk
+}

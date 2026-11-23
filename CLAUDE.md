@@ -55,9 +55,10 @@ Manual design, no DI framework, no Room: the app is one stateful pipeline plus t
 **Data** (`data/YearwallStore.kt`) — a single DataStore, the shell system's filesystem state in
 pref form: `last_applied_epoch_day` (the boot script's `date -r` staleness check), the two design
 knobs (`columns`, `content_y_percent` — grid columns at the script's default 21, and the whole-
-content Y anchor as a percent of height, default 29 ≈ the script's 700/2400), and `last_error`
-for the status list. No Room — none of that is relational; tooler's "no database for scalar
-prefs" rule applies directly.
+content Y anchor as a percent of height, default 29 ≈ the script's 700/2400), `last_error` for the
+status list, and which screens actually hold the render (`home_has_yearwall`,
+`lock_has_yearwall`) so a target change can reset only the screen it drops. No Room — none of that
+is relational; tooler's "no database for scalar prefs" rule applies directly.
 
 **Render** (`wallpaper/WallpaperGenerator.kt`) — one `Canvas` frame built at the system's own
 desired wallpaper size (`WallpaperManager.desiredMinimumWidth/Height`, 1080x2400 only as the
@@ -105,9 +106,12 @@ aftermath.
 
 **Identical entry funnel** — midnight worker, catch-up worker, fallback periodic, and the Apply-now
 button all call `YearwallEngine.apply()`, which gates on `lastAppliedEpochDay == today.toEpochDay()`
-when not forced (the boot script's staleness test), renders, saves the PNG to `filesDir` (the script's
-`yearwall_generated.png`), applies the targeted screens (lock by default, per the target pref),
-and stamps the day only when every targeted screen took.
+*and* the stored screen set still matching the target when not forced (the boot script's staleness
+test, widened so a target change is never skipped as "already current"). It renders, saves the PNG
+to `filesDir` (the script's `yearwall_generated.png`), first restores the bundled default on any
+screen the target dropped, applies the render to the targeted screens (lock by default, per the
+target pref), and stamps the day only when every write — including the resets — took. A screen
+yearwall never wrote is never reset; failed writes stay recorded so the next apply retries them.
 
 ## Theme
 

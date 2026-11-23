@@ -42,9 +42,25 @@ object YearwallEngine {
 
     private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {
         val prefs = YearwallStore.read(context)
-        if (!force && prefs.lastAppliedEpochDay == today.toEpochDay()) {
+        val targetFlags = WallpaperApplier.flagsFor(prefs.target)
+        val homeTargeted = targetFlags.contains(WallpaperManager.FLAG_SYSTEM)
+        val lockTargeted = targetFlags.contains(WallpaperManager.FLAG_LOCK)
+
+        // A screen holding the render but no longer targeted goes back to the bundled Nord
+        // image on this pass — otherwise it keeps a render yearwall will never refresh again.
+        val resetFlags = buildList {
+            if (prefs.homeHasYearwall && !homeTargeted) add(WallpaperManager.FLAG_SYSTEM)
+            if (prefs.lockHasYearwall && !lockTargeted) add(WallpaperManager.FLAG_LOCK)
+        }
+        // A target change (or a partially failed previous apply) makes the stored screen set
+        // disagree with the target, so it must not be swallowed by the same-day staleness gate.
+        val screensMatchTarget =
+            prefs.homeHasYearwall == homeTargeted && prefs.lockHasYearwall == lockTargeted
+        if (!force && prefs.lastAppliedEpochDay == today.toEpochDay() && screensMatchTarget) {
             return ApplyOutcome(true, true, listOf("Wallpaper is already current for $today."))
         }
+
+        val reset = if (resetFlags.isEmpty()) null else WallpaperApplier.restoreScreens(context, resetFlags)
 
         val design = run {
             // Real display size — desiredMinimumWidth/Height lies on several skins (a tiny
@@ -66,10 +82,23 @@ object YearwallEngine {
         }
 
         val outcome = WallpaperApplier.apply(context, bitmap, prefs.target)
-        android.util.Log.i("Yearwall", "apply complete home=${outcome.homeOk} lock=${outcome.lockOk} ${outcome.messages.joinToString(" | ")}")
-        // Only stamp the day when every targeted screen actually took — a failed lock-screen
-        // write under target=lock still re-tries the pair next time (the script's `|| exit 1`).
-        if (outcome.allOk) {
+        val messages = reset?.messages.orEmpty() + outcome.messages
+        android.util.Log.i("Yearwall", "apply complete home=${outcome.homeOk} lock=${outcome.lockOk} reset=$resetFlags ${messages.joinToString(" | ")}")
+
+        // Remember what is actually on each screen, including partial failures, so the next
+        // apply retries a failed write/reset instead of forgetting that screen exists.
+        var homeHas = prefs.homeHasYearwall
+        var lockHas = prefs.lockHasYearwall
+        if (resetFlags.contains(WallpaperManager.FLAG_SYSTEM) && reset?.homeOk == true) homeHas = false
+        if (resetFlags.contains(WallpaperManager.FLAG_LOCK) && reset?.lockOk == true) lockHas = false
+        if (homeTargeted && outcome.homeOk) homeHas = true
+        if (lockTargeted && outcome.lockOk) lockHas = true
+        YearwallStore.setAppliedScreens(context, homeHas, lockHas)
+
+        // Only stamp the day when the new render AND every dropped-screen reset took — a failed
+        // lock write under target=lock still retries next time (the script's `|| exit 1`).
+        val allOk = outcome.allOk && (reset?.allOk ?: true)
+        if (allOk) {
             YearwallStore.setLastAppliedDay(context, today.toEpochDay())
             // Re-arm the midnight chain on EVERY successful apply — the Apply-now button path
             // runs outside the worker, and without this a Remove+Apply in the same Activity
@@ -77,27 +106,37 @@ object YearwallEngine {
             // happened to re-arm it (verified live on the device).
             Scheduler.scheduleNextMidnight(context, androidx.work.ExistingWorkPolicy.REPLACE)
         }
-        YearwallStore.setLastError(
-            context,
-            if (outcome.allOk) null else outcome.messages.joinToString(" · ")
+        YearwallStore.setLastError(context, if (allOk) null else messages.joinToString(" · "))
+        return outcome.copy(
+            homeOk = outcome.homeOk && (reset?.homeOk ?: true),
+            lockOk = outcome.lockOk && (reset?.lockOk ?: true),
+            messages = messages
         )
-        return outcome
     }
 
     /**
      * The `rm` command: stop all three timers, set the same default wallpaper the shell
      * script restored (bundled copy of termux-config's data/wallpaper/wallpaper.png) onto
-     * every screen yearwall touched, then wipe generated artifacts and prefs.
+     * every screen yearwall touched — including one dropped by a target change that has not
+     * applied yet — then wipe generated artifacts and prefs.
      */
     suspend fun remove(context: Context): List<String> {
-        val messages = WallpaperApplier.restoreDefaults(context).toMutableList()
-        if (messages.any { it.contains("failed") || it.contains("unreadable") }) {
-            YearwallStore.setLastError(context, messages.joinToString(" · "))
+        val prefs = YearwallStore.read(context)
+        val flags = WallpaperApplier.flagsFor(prefs.target).toMutableList()
+        if (prefs.homeHasYearwall && !flags.contains(WallpaperManager.FLAG_SYSTEM)) {
+            flags += WallpaperManager.FLAG_SYSTEM
+        }
+        if (prefs.lockHasYearwall && !flags.contains(WallpaperManager.FLAG_LOCK)) {
+            flags += WallpaperManager.FLAG_LOCK
+        }
+        val restored = WallpaperApplier.restoreScreens(context, flags)
+        if (!restored.allOk) {
+            YearwallStore.setLastError(context, restored.messages.joinToString(" · "))
         }
         File(context.filesDir, IMAGE_FILE).delete()
         YearwallStore.clear(context)
         Scheduler.cancelAll(context)
-        return messages
+        return restored.messages
     }
 
     /**

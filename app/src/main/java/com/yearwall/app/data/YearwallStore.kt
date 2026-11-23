@@ -1,6 +1,7 @@
 package com.yearwall.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -29,6 +30,10 @@ object YearwallStore {
         val columns: Int = 21,
         val contentYPercent: Int = 29,
         val lastError: String? = null,
+        // Screens actually holding the yearwall render after the last apply. A target change
+        // resets only the screens that drop out; a screen yearwall never wrote is never touched.
+        val homeHasYearwall: Boolean = false,
+        val lockHasYearwall: Boolean = false,
     )
 
     private val LAST_APPLIED_EPOCH_DAY = longPreferencesKey("last_applied_epoch_day")
@@ -36,6 +41,8 @@ object YearwallStore {
     private val COLUMNS = intPreferencesKey("columns")
     private val CONTENT_Y_PERCENT = intPreferencesKey("content_y_percent")
     private val LAST_ERROR = stringPreferencesKey("last_error")
+    private val HOME_HAS_YEARWALL = booleanPreferencesKey("home_has_yearwall")
+    private val LOCK_HAS_YEARWALL = booleanPreferencesKey("lock_has_yearwall")
 
     suspend fun read(context: Context): Prefs =
         context.yearwallDataStore.data.first().let { p ->
@@ -45,6 +52,8 @@ object YearwallStore {
                 columns = p[COLUMNS] ?: 21,
                 contentYPercent = p[CONTENT_Y_PERCENT] ?: 29,
                 lastError = p[LAST_ERROR],
+                homeHasYearwall = p[HOME_HAS_YEARWALL] ?: false,
+                lockHasYearwall = p[LOCK_HAS_YEARWALL] ?: false,
             )
         }
 
@@ -73,6 +82,14 @@ object YearwallStore {
 
     suspend fun setTarget(context: Context, value: String) =
         context.yearwallDataStore.edit { it[TARGET] = value }
+
+    // Mirrors what the last apply actually wrote, including partial failures. Kept across
+    // resets so a pending screen reset is never lost just because knobs were reset.
+    suspend fun setAppliedScreens(context: Context, home: Boolean, lock: Boolean) =
+        context.yearwallDataStore.edit {
+            it[HOME_HAS_YEARWALL] = home
+            it[LOCK_HAS_YEARWALL] = lock
+        }
 
     // Full teardown — `rm` resets everything, including the design knobs, back to script
     // defaults so a re-setup starts from a known state.

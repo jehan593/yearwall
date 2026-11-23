@@ -5,14 +5,14 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.yearwall.app.R
-import com.yearwall.app.data.YearwallStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * `termux-wallpaper -f "$OUTPUT" -l` equivalent, written per target screen. Faithful to the
  * actual termux-api behavior: `-l` sets FLAG_LOCK only, so lock is the default target, with
- * home/both selectable. Untargeted screens are never touched.
+ * home/both selectable. A screen outside the current target is left alone, except when a target
+ * change dropped it — the engine resets that screen to the bundled Nord default on the next apply.
  *
  * Several low-end OEM frameworks (HiOS/XOS-era Android 10 devices) strip the newer
  * WallpaperManager overloads; NoSuchMethodError is an Error, not an Exception, so every
@@ -89,24 +89,33 @@ object WallpaperApplier {
     }
 
     /**
-     * Removal: set the same default wallpaper the shell script's `rm` restored — a bundled
-     * copy of `termux-config/data/wallpaper/wallpaper.png` (res/raw/default_wallpaper.png) —
-     * onto every screen yearwall touched. No reading, no archiving, no restore: the default
+     * Set the bundled Nord default (the shell script's `rm` image) on exactly [flags]. Used by
+     * Remove and by the first apply after a target change drops a screen, so no screen is left
+     * showing a render yearwall will never refresh again. No reading, no archiving: the default
      * write is unconditional and Throwable-safe.
      */
-    suspend fun restoreDefaults(context: Context): List<String> = withContext(Dispatchers.IO) {
+    suspend fun restoreScreens(context: Context, flags: List<Int>): RestoreOutcome = withContext(Dispatchers.IO) {
         val wallpaperManager = WallpaperManager.getInstance(context)
         val src = runCatching { android.graphics.BitmapFactory.decodeResource(context.resources, R.raw.default_wallpaper) }
         val bitmap = src.getOrNull()
         if (bitmap == null) {
-            return@withContext listOf("Remove: bundled default wallpaper unreadable (${src.exceptionOrNull()?.javaClass?.simpleName}).")
+            val message = "Remove: bundled default wallpaper unreadable (${src.exceptionOrNull()?.javaClass?.simpleName})."
+            return@withContext RestoreOutcome(
+                homeOk = !flags.contains(WallpaperManager.FLAG_SYSTEM),
+                lockOk = !flags.contains(WallpaperManager.FLAG_LOCK),
+                messages = listOf(message)
+            )
         }
         val crop = Rect(0, 0, bitmap.width, bitmap.height)
+        var homeOk = true
+        var lockOk = true
         val messages = mutableListOf<String>()
-        for (flag in flagsFor(YearwallStore.read(context).target)) {
-            messages += setDefaultOne(wallpaperManager, bitmap, crop, flag)
+        for (flag in flags) {
+            val (ok, message) = setDefaultOne(wallpaperManager, bitmap, crop, flag)
+            messages += message
+            if (flag == WallpaperManager.FLAG_SYSTEM) homeOk = ok else lockOk = ok
         }
-        messages
+        RestoreOutcome(homeOk, lockOk, messages)
     }
 
     private fun setDefaultOne(
@@ -114,18 +123,18 @@ object WallpaperApplier {
         bitmap: Bitmap,
         crop: Rect,
         which: Int
-    ): String {
+    ): Pair<Boolean, String> {
         val screen = if (which == WallpaperManager.FLAG_SYSTEM) "Home screen" else "Lock screen"
         val full = runCatching { wallpaperManager.setBitmap(bitmap, crop, true, which) }
-        if (full.isSuccess) return "$screen: default wallpaper set."
+        if (full.isSuccess) return true to "$screen: default wallpaper set."
         val fullFailure = full.exceptionOrNull()
         if (fullFailure != null &&
             which == WallpaperManager.FLAG_SYSTEM &&
             runCatching { wallpaperManager.setBitmap(bitmap) }.isSuccess
         ) {
-            return "$screen: default wallpaper set."
+            return true to "$screen: default wallpaper set."
         }
-        return "$screen: default-wallpaper write failed — " +
+        return false to "$screen: default-wallpaper write failed — " +
             "${fullFailure?.javaClass?.simpleName} ${fullFailure?.message ?: ""}".trim()
     }
 }
