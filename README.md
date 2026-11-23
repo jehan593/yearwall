@@ -4,30 +4,30 @@
 [![Latest release](https://img.shields.io/github/v/release/jehan593/yearwall)](https://github.com/jehan593/yearwall/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-The Android port of my [Termux yearwall system](https://github.com/jehan593/termux-config): a daily
-"year progress" wallpaper — a Nord dot grid with one red dot for today, plus a `NN% of YYYY` /
-`day/total` header. Same look, same habits, zero Termux.
+A daily "year progress" wallpaper for Android: a Nord dot grid with one red dot for today, plus a
+`NN% of YYYY` / `day/total` header. Set it once and it keeps itself current.
 
 > **FYI:** This project is fully vibe coded for my personal use and taste. It's shared publicly in case it's useful to you. Feel free to fork it and adapt it to your needs.
 
+<p align="center"><img src="docs/screenshot.png" alt="Yearwall app" width="300"></p>
+
 ## Features
 
-- **The same render, no Termux** — the wallpaper is drawn natively with the same colors, layout
-  and Martian Mono header: elapsed days filled, remaining days hollow, today red.
-- **Lock screen by default** — like `termux-wallpaper -l`. Home screen or both is a one-tap choice.
+- **Native render** — the wallpaper is drawn on-device with the Nord palette and Martian Mono
+  header: elapsed days filled, remaining days hollow, today red.
+- **Choose your screens** — lock screen by default, with home or both one tap away.
 - **Set-and-forget updates** — an exact alarm fires at midnight and works while the phone is
   off-screen and asleep; boot, clock, timezone and app-open catch-ups cover anything missed.
   *Huawei/EMUI: set App launch → Yearwall → Manage manually so the overnight alarm is honored.*
-- **Remove puts back the default** — Remove sets the same default wallpaper the shell setup
-  used (a bundled copy of `termux-config`'s `data/wallpaper/wallpaper.png`), on the screens
-  yearwall touched. No leftover lock-in: uninstalling stops everything instantly.
+- **Clean removal** — Remove restores the bundled Nord default wallpaper on the screens yearwall
+  touched and cancels every timer. No leftover lock-in: uninstalling stops everything instantly.
 - **Status you can read** — every part of the automation reports what it did and why.
 - **Nord themed UI** — same palette and Martian Mono type as Linker/OwnApps/Noter.
 
 ## Install
 
 Download the latest APK from [Releases](https://github.com/jehan593/yearwall/releases/latest). Open
-the app, review the status list, and press **Apply now** to set today's wallpaper. That's it.
+the app, review the status list, and press **Apply** to set today's wallpaper. That's it.
 
 ## Build
 

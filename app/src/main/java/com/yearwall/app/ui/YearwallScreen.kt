@@ -1,6 +1,5 @@
 package com.yearwall.app.ui
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.yearwall.app.automation.CrashGuard
 import com.yearwall.app.automation.StatusChecker
 import com.yearwall.app.automation.StatusItem
@@ -46,10 +48,13 @@ import com.yearwall.app.automation.YearwallEngine
 import com.yearwall.app.data.YearwallStore
 import com.yearwall.app.ui.theme.nord11
 import com.yearwall.app.ui.theme.nord14
+import com.yearwall.app.wallpaper.WallpaperGenerator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
+import java.time.LocalDate
 
 /*
  * The status/setup screen — `yearwall status` + `yearwall setup` + `yearwall rm`, kept in the
@@ -64,21 +69,36 @@ fun YearwallScreen() {
     var status by remember { mutableStateOf(emptyList<StatusItem>()) }
     var prefs by remember { mutableStateOf(YearwallStore.Prefs()) }
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
+    var previewJob by remember { mutableStateOf<Job?>(null) }
     var busy by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
 
+    // Stepping a knob re-renders the preview from the unsaved values. Debounced so holding a
+    // stepper doesn't queue a full Canvas render per tap.
+    fun schedulePreview(next: YearwallStore.Prefs) {
+        previewJob?.cancel()
+        previewJob = scope.launch {
+            delay(150)
+            val rendered = runCatching { renderPreview(context, next) }.getOrNull() ?: return@launch
+            if (previewJob?.isActive == true) preview = rendered
+        }
+    }
+
     fun refresh() {
+        previewJob?.cancel()
         scope.launch {
             // The state below starts at Prefs() defaults, so it must be rehydrated from the
             // store on every composition — otherwise a process kill/recreation leaves the
             // controls showing Lock/21/29 while the engine keeps using the stored values.
             runSafely { prefs = YearwallStore.read(context) }
             runSafely { status = StatusChecker.collect(context) }
-            runSafely { preview = loadPreview(context) }
+            runSafely { preview = renderPreview(context, prefs) }
         }
     }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) { refresh() }
+    // Covers both first composition and every later return to the app: background workers can
+    // finish while the UI is stopped, so status and the preview PNG must be reloaded on resume.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
     Column(
         modifier = Modifier
@@ -106,32 +126,18 @@ fun YearwallScreen() {
                         contentDescription = "Current yearwall render",
                         modifier = Modifier
                             .fillMaxWidth(0.55f)
+                            // Height cap keeps Preview + the settings card's Apply button in one
+                            // view on a normal phone; ContentScale.Fit preserves the aspect ratio.
+                            .heightIn(max = 200.dp)
                             .align(Alignment.CenterHorizontally)
                             .clip(RoundedCornerShape(8.dp))
                     )
                 } ?: Text(
-                    "Nothing rendered yet — press Apply now.",
+                    "Nothing rendered yet — press Apply.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-
-        // -- Actions ---------------------------------------------------------------------------
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = {
-                    busy = true
-                    scope.launch {
-                        runSafely { YearwallEngine.apply(context, force = true) }
-                        runSafely { status = StatusChecker.collect(context) }
-                        runSafely { preview = loadPreview(context) }
-                        busy = false
-                    }
-                },
-                enabled = !busy
-            ) { Text(if (busy) "Working…" else "Apply now") }
-            OutlinedButton(onClick = { refresh() }) { Text("Refresh status") }
         }
 
         // -- Design knobs (columns / whole-content Y — everything else derives automatically) ----
@@ -174,8 +180,10 @@ fun YearwallScreen() {
                     value = prefs.columns,
                     range = 5..25
                 ) { next ->
-                    prefs = prefs.copy(columns = next)
+                    val updated = prefs.copy(columns = next)
+                    prefs = updated
                     scope.launch { YearwallStore.setColumns(context, next) }
+                    schedulePreview(updated)
                 }
                 Stepper(
                     label = "Content Y",
@@ -183,19 +191,43 @@ fun YearwallScreen() {
                     range = 10..70,
                     suffix = "%"
                 ) { next ->
-                    prefs = prefs.copy(contentYPercent = next)
+                    val updated = prefs.copy(contentYPercent = next)
+                    prefs = updated
                     scope.launch { YearwallStore.setContentYPercent(context, next) }
+                    schedulePreview(updated)
                 }
-                // Reset lives at the card's bottom, full-width for an easy thumb target.
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            YearwallStore.resetAutomation(context)
-                            prefs = YearwallStore.read(context)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Reset to defaults") }
+                // Apply and Reset share the card's bottom row; Reset sits left of Apply.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                YearwallStore.resetAutomation(context)
+                                val reset = YearwallStore.read(context)
+                                prefs = reset
+                                runSafely { preview = renderPreview(context, reset) }
+                            }
+                        },
+                        enabled = !busy
+                    ) { Text("Reset") }
+                    Button(
+                        onClick = {
+                            previewJob?.cancel()
+                            busy = true
+                            scope.launch {
+                                runSafely { YearwallEngine.apply(context, force = true) }
+                                runSafely { status = StatusChecker.collect(context) }
+                                runSafely { preview = renderPreview(context, prefs) }
+                                busy = false
+                            }
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (busy) "Working…" else "Apply") }
+                }
             }
         }
 
@@ -247,8 +279,10 @@ fun YearwallScreen() {
                     busy = true
                     scope.launch {
                         runSafely { YearwallEngine.remove(context) }
+                        previewJob?.cancel()
+                        runSafely { prefs = YearwallStore.read(context) }
                         runSafely { status = StatusChecker.collect(context) }
-                        runSafely { preview = loadPreview(context) }
+                        preview = null
                         busy = false
                     }
                 }) { Text("Remove") }
@@ -329,20 +363,24 @@ private fun Stepper(
     }
 }
 
-// Decoded at ~half scale for the preview card only — the on-disk render stays untouched.
-private suspend fun loadPreview(context: android.content.Context): ImageBitmap? =
-    withContext(Dispatchers.IO) {
-        val file = File(context.filesDir, YearwallEngine.IMAGE_FILE)
-        if (!file.exists()) return@withContext null
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, bounds)
-        var sample = 1
-        while (bounds.outWidth > 512 * sample) sample *= 2
-        BitmapFactory.decodeFile(
-            file.absolutePath,
-            BitmapFactory.Options().apply { inSampleSize = sample }
-        )?.asImageBitmap()
-    }
+// Rendered live at half the device resolution: the preview follows the knob values before they
+// are applied, and the on-disk wallpaper is never touched by previewing.
+private suspend fun renderPreview(
+    context: android.content.Context,
+    prefs: YearwallStore.Prefs,
+): ImageBitmap = withContext(Dispatchers.Default) {
+    val (width, height) = YearwallEngine.screenPortraitSize(context)
+    WallpaperGenerator.generate(
+        context,
+        LocalDate.now(),
+        WallpaperGenerator.Design(
+            width = width / 2,
+            height = height / 2,
+            columns = prefs.columns,
+            contentYRatio = prefs.contentYPercent / 100f,
+        )
+    ).asImageBitmap()
+}
 
 // Nothing a user taps should ever crash the process; the Status list is the error surface.
 private suspend fun runSafely(block: suspend () -> Unit) {

@@ -145,7 +145,7 @@ object YearwallEngine {
      * gives the true panel size on API 30+; getRealSize covers 26–29. The script's 1080x2400
      * reference only survives as the never-reachable-services fallback.
      */
-    private fun screenPortraitSize(context: Context): Pair<Int, Int> {
+    internal fun screenPortraitSize(context: Context): Pair<Int, Int> {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
         if (windowManager != null) {
             val point = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
