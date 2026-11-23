@@ -69,6 +69,10 @@ fun YearwallScreen() {
 
     fun refresh() {
         scope.launch {
+            // The state below starts at Prefs() defaults, so it must be rehydrated from the
+            // store on every composition — otherwise a process kill/recreation leaves the
+            // controls showing Lock/21/29 while the engine keeps using the stored values.
+            runSafely { prefs = YearwallStore.read(context) }
             runSafely { status = StatusChecker.collect(context) }
             runSafely { preview = loadPreview(context) }
         }
@@ -128,12 +132,6 @@ fun YearwallScreen() {
                 enabled = !busy
             ) { Text(if (busy) "Working…" else "Apply now") }
             OutlinedButton(onClick = { refresh() }) { Text("Refresh status") }
-        }
-
-        // -- Status (the `status` command) -------------------------------------------------------
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Status", fontWeight = FontWeight.Medium, fontSize = 16.sp)
-            status.forEach { StatusRow(it) }
         }
 
         // -- Design knobs (columns / whole-content Y — everything else derives automatically) ----
@@ -225,6 +223,12 @@ fun YearwallScreen() {
                     )
                 ) { Text("Remove yearwall") }
             }
+        }
+
+        // -- Status (the `status` command) — last, below the settings and remove cards -----------
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Status", fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            status.forEach { StatusRow(it) }
         }
     }
 
