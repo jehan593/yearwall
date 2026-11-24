@@ -42,6 +42,12 @@ object YearwallEngine {
 
     private suspend fun applyRender(context: Context, today: LocalDate, force: Boolean): ApplyOutcome {
         val prefs = YearwallStore.read(context)
+        if (!force && !prefs.enabled) {
+            return ApplyOutcome(true, true, listOf("Yearwall is removed; automatic updates are disabled."))
+        }
+        if (force && !prefs.enabled) {
+            YearwallStore.setEnabled(context, true)
+        }
         val targetFlags = WallpaperApplier.flagsFor(prefs.target)
         val homeTargeted = targetFlags.contains(WallpaperManager.FLAG_SYSTEM)
         val lockTargeted = targetFlags.contains(WallpaperManager.FLAG_LOCK)
@@ -115,10 +121,9 @@ object YearwallEngine {
     }
 
     /**
-     * The `rm` command: stop all three timers, set the same default wallpaper the shell
-     * script restored (bundled copy of termux-config's data/wallpaper/wallpaper.png) onto
-     * every screen yearwall touched — including one dropped by a target change that has not
-     * applied yet — then wipe generated artifacts and prefs.
+     * The `rm` command: stop all timers/alarms, restore the bundled Nord default on every
+     * screen yearwall touched — including one dropped by a target change that has not applied
+     * yet — then wipe generated artifacts and prefs so nothing can auto-apply until Apply.
      */
     suspend fun remove(context: Context): List<String> {
         val prefs = YearwallStore.read(context)
@@ -129,13 +134,13 @@ object YearwallEngine {
         if (prefs.lockHasYearwall && !flags.contains(WallpaperManager.FLAG_LOCK)) {
             flags += WallpaperManager.FLAG_LOCK
         }
+        Scheduler.cancelAll(context)
         val restored = WallpaperApplier.restoreScreens(context, flags)
+        File(context.filesDir, IMAGE_FILE).delete()
+        YearwallStore.clear(context)
         if (!restored.allOk) {
             YearwallStore.setLastError(context, restored.messages.joinToString(" · "))
         }
-        File(context.filesDir, IMAGE_FILE).delete()
-        YearwallStore.clear(context)
-        Scheduler.cancelAll(context)
         return restored.messages
     }
 

@@ -282,7 +282,7 @@ fun YearwallScreen() {
                         previewJob?.cancel()
                         runSafely { prefs = YearwallStore.read(context) }
                         runSafely { status = StatusChecker.collect(context) }
-                        preview = null
+                        runSafely { preview = renderPreview(context, prefs) }
                         busy = false
                     }
                 }) { Text("Remove") }

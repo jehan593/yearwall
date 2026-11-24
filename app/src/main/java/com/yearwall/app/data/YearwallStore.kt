@@ -34,6 +34,9 @@ object YearwallStore {
         // resets only the screens that drop out; a screen yearwall never wrote is never touched.
         val homeHasYearwall: Boolean = false,
         val lockHasYearwall: Boolean = false,
+        // False after Remove/full reset. Automation and catch-up must never reapply until the
+        // user explicitly Applies again. Existing installs with applied state default to true.
+        val enabled: Boolean = false,
     )
 
     private val LAST_APPLIED_EPOCH_DAY = longPreferencesKey("last_applied_epoch_day")
@@ -43,17 +46,24 @@ object YearwallStore {
     private val LAST_ERROR = stringPreferencesKey("last_error")
     private val HOME_HAS_YEARWALL = booleanPreferencesKey("home_has_yearwall")
     private val LOCK_HAS_YEARWALL = booleanPreferencesKey("lock_has_yearwall")
+    private val ENABLED = booleanPreferencesKey("enabled")
 
     suspend fun read(context: Context): Prefs =
         context.yearwallDataStore.data.first().let { p ->
+            val homeHas = p[HOME_HAS_YEARWALL] ?: false
+            val lockHas = p[LOCK_HAS_YEARWALL] ?: false
+            val lastApplied = p[LAST_APPLIED_EPOCH_DAY] ?: 0L
+            // Default keeps existing installs active; fresh/cleared installs are inactive until Apply.
+            val enabled = p[ENABLED] ?: (homeHas || lockHas || lastApplied != 0L)
             Prefs(
-                lastAppliedEpochDay = p[LAST_APPLIED_EPOCH_DAY] ?: 0L,
+                lastAppliedEpochDay = lastApplied,
                 target = p[TARGET] ?: "lock",
                 columns = p[COLUMNS] ?: 21,
                 contentYPercent = p[CONTENT_Y_PERCENT] ?: 29,
                 lastError = p[LAST_ERROR],
-                homeHasYearwall = p[HOME_HAS_YEARWALL] ?: false,
-                lockHasYearwall = p[LOCK_HAS_YEARWALL] ?: false,
+                homeHasYearwall = homeHas,
+                lockHasYearwall = lockHas,
+                enabled = enabled,
             )
         }
 
@@ -75,7 +85,11 @@ object YearwallStore {
         context.yearwallDataStore.edit {
             it[LAST_APPLIED_EPOCH_DAY] = epochDay
             it[LAST_ERROR] = ""
+            it[ENABLED] = true
         }
+
+    suspend fun setEnabled(context: Context, enabled: Boolean) =
+        context.yearwallDataStore.edit { it[ENABLED] = enabled }
 
     suspend fun setLastError(context: Context, message: String?) =
         context.yearwallDataStore.edit { it[LAST_ERROR] = message ?: "" }

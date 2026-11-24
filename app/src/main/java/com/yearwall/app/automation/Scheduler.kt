@@ -13,6 +13,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.yearwall.app.data.YearwallStore
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
@@ -116,8 +117,13 @@ object Scheduler {
      * midnight job was armed against the *old* clock/timezone, so it's replaced with a delay
      * recomputed against the new one. The app-open path passes false — KEEP keeps the existing
      * chain intact instead of pushing "next midnight" out a full day on every resume.
+     * No-ops when yearwall is removed/disabled so automation cannot resurrect after Remove.
      */
-    fun ensure(context: Context, rebaseExisting: Boolean = false) {
+    suspend fun ensure(context: Context, rebaseExisting: Boolean = false) {
+        if (!YearwallStore.read(context).enabled) {
+            cancelAll(context)
+            return
+        }
         scheduleNextMidnight(context, midnightPolicy(context, rebaseExisting))
         ensureFallback(context)
         enqueueCatchUp(context)

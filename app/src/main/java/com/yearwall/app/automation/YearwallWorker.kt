@@ -20,6 +20,11 @@ class YearwallWorker(
         val appContext = applicationContext
         return try {
             val force = inputData.getBoolean(KEY_FORCE, false)
+            val prefs = YearwallStore.read(appContext)
+            if (!force && !prefs.enabled) {
+                Scheduler.cancelAll(appContext)
+                return Result.success()
+            }
             val outcome = YearwallEngine.apply(appContext, force)
             Scheduler.scheduleNextMidnight(appContext, ExistingWorkPolicy.REPLACE)
             when {
@@ -32,7 +37,11 @@ class YearwallWorker(
             }
         } catch (t: Throwable) {
             YearwallStore.setLastError(appContext, t.message ?: t.javaClass.simpleName)
-            Scheduler.scheduleNextMidnight(appContext, ExistingWorkPolicy.REPLACE)
+            if (YearwallStore.read(appContext).enabled) {
+                Scheduler.scheduleNextMidnight(appContext, ExistingWorkPolicy.REPLACE)
+            } else {
+                Scheduler.cancelAll(appContext)
+            }
             if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
         }
     }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
 import android.util.Log
+import com.yearwall.app.data.YearwallStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,13 +34,18 @@ class YearwallAlarmReceiver : BroadcastReceiver() {
 
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
-                try {
-                    YearwallEngine.apply(appContext, force = false)
-                } catch (t: Throwable) {
-                    Log.e(TAG, "midnight alarm apply failed", t)
+                val enabled = try { YearwallStore.read(appContext).enabled } catch (_: Throwable) { false }
+                if (enabled) {
+                    try {
+                        YearwallEngine.apply(appContext, force = false)
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "midnight alarm apply failed", t)
+                    }
+                    // Tomorrow's alarm + chains re-arm from here, whatever today's run did.
+                    Scheduler.ensure(appContext, rebaseExisting = true)
+                } else {
+                    Scheduler.cancelAll(appContext)
                 }
-                // Tomorrow's alarm + chains re-arm from here, whatever today's run did.
-                Scheduler.ensure(appContext, rebaseExisting = true)
             } finally {
                 try { wakeLock?.release() } catch (_: Throwable) { }
                 pending.finish()

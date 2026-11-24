@@ -14,10 +14,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import com.yearwall.app.automation.CrashGuard
 import com.yearwall.app.automation.Scheduler
 import com.yearwall.app.ui.YearwallScreen
 import com.yearwall.app.ui.theme.YearwallTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -53,6 +55,6 @@ class MainActivity : ComponentActivity() {
      */
     override fun onResume() {
         super.onResume()
-        Scheduler.ensure(this, rebaseExisting = false)
+        lifecycleScope.launch { Scheduler.ensure(this@MainActivity, rebaseExisting = false) }
     }
 }

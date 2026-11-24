@@ -38,6 +38,8 @@ object StatusChecker {
                 applied == today,
                 "Last applied $applied."
             )
+        } else if (!prefs.enabled) {
+            StatusItem("Core generator", false, "Removed. Nothing will update until Apply.")
         } else {
             StatusItem("Core generator", false, "No wallpaper generated yet.")
         }
@@ -45,6 +47,7 @@ object StatusChecker {
         // --- Screen target -----------------------------------------------------------------
         items += StatusItem("Target screens", true, targetLabel(prefs.target))
 
+        val enabled = prefs.enabled
         // --- Cron ------------------------------------------------------------------------------
         val midnightStatus = run {
             val info = try {
@@ -54,6 +57,7 @@ object StatusChecker {
                 null
             }
             when {
+                !enabled -> StatusItem("Midnight automation", false, "Disabled until Apply.")
                 info == null -> StatusItem("Midnight automation", false, "Not scheduled.")
                 info.state == WorkInfo.State.ENQUEUED && info.nextScheduleTimeMillis > 0 ->
                     StatusItem(
@@ -70,27 +74,29 @@ object StatusChecker {
 
         // --- Midnight precision: the exact alarm (the piece that makes it happen when the
         // phone is locked and asleep) --------------------------------------------
+        val exactPermitted = Scheduler.exactAlarmsPermitted(context)
         items += StatusItem(
             "Midnight precision",
-            Scheduler.exactAlarmsPermitted(context),
-            if (Scheduler.exactAlarmsPermitted(context))
-                "Exact alarm set — updates even while locked and asleep."
-            else
-                "Exact timing needs the 'Alarms & reminders' permission — updates may arrive late."
+            enabled && exactPermitted,
+            when {
+                !enabled -> "Disabled until Apply."
+                exactPermitted -> "Exact alarm set — updates even while locked and asleep."
+                else -> "Exact timing needs the 'Alarms & reminders' permission — updates may arrive late."
+            }
         )
 
         // --- Boot script equivalent --------------------------------------------------------------
         items += StatusItem(
             "Boot persistence",
-            true,
-            "Updates on boot, clock and timezone changes."
+            enabled,
+            if (enabled) "Updates on boot, clock and timezone changes." else "Disabled until Apply."
         )
 
         // --- profile.d session catch-up equivalent -----------------------------------------------
         items += StatusItem(
             "Session catch-up",
-            true,
-            "Updates whenever the app opens."
+            enabled,
+            if (enabled) "Updates whenever the app opens." else "Disabled until Apply."
         )
 
         // --- Wallpaper permission ---------------------------------------------------------------
